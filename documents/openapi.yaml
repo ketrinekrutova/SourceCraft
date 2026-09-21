@@ -1,0 +1,702 @@
+openapi: 3.0.3
+
+info:
+  title: SourceCraft Repo Health API
+  version: 0.2.0
+  description: |
+    API сервиса оценки здоровья открытых репозиториев SourceCraft.
+
+    Сервис регулярно анализирует репозитории, рассчитывает Repo Health Score
+    от 0 до 100 по шести категориям, объясняет оценку и формирует
+    приоритизированные рекомендации.
+
+    **Границы версии 0.2.** Авторизация через Я ID и раздел «Мои репозитории»
+    не реализованы — все ручки публичные, анализ запускается по URL открытого
+    репозитория. Схема `UserRepository` и security scheme `YandexID` описаны
+    заранее, чтобы добавление авторизации в 0.3 не ломало существующие контракты.
+
+    **Асинхронность.** Анализ репозитория — фоновая задача: запуск возвращает
+    `202 Accepted` с `job_id`, прогресс опрашивается через `GET /jobs/{job_id}`.
+
+    **Нет данных ≠ плохо.** Если метрику посчитать не удалось, категория
+    возвращается со `status: NO_DATA` и `score: null`, исключается из
+    взвешивания, а веса оставшихся категорий нормализуются.
+  contact:
+    name: Repo Health team
+  license:
+    name: MIT
+
+servers:
+  - url: https://{host}/api/v1
+    description: Демонстрационный стенд
+    variables:
+      host:
+        default: localhost:8080
+
+tags:
+  - name: Ranking
+    description: Публичный рейтинг здоровья открытых репозиториев
+  - name: Analysis
+    description: Детальный отчёт и запуск анализа
+  - name: Jobs
+    description: Статус фоновых задач
+  - name: Reports
+    description: Выгрузка отчётов
+  - name: User
+    description: Отложено до v0.3 — требует авторизации через Я ID
+
+paths:
+
+  /repositories:
+    get:
+      tags: [Ranking]
+      summary: Рейтинг открытых репозиториев
+      description: |
+        Список проанализированных открытых репозиториев с фильтрацией по языку
+        и сортировкой по Repo Health Score, лайкам или дате последней активности.
+        Здоровье проекта — сортировка по умолчанию: рейтинг не должен
+        превращаться в список популярности.
+      operationId: listRepositories
+      parameters:
+        - name: language
+          in: query
+          description: Фильтр по основному языку репозитория
+          required: false
+          schema:
+            type: string
+            example: Python
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [health_score, likes, last_activity]
+            default: health_score
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Страница рейтинга
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /repositories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/RepositoryId'
+    get:
+      tags: [Analysis]
+      summary: Детальный отчёт по репозиторию
+      description: |
+        Итоговый Repo Health Score, оценки по шести категориям с объяснением и
+        весами, список приоритизированных рекомендаций с подтверждающими
+        фактами, перечень недоступных данных и дата последнего анализа.
+      operationId: getRepository
+      responses:
+        '200':
+          description: Отчёт по репозиторию
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepositoryDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /repositories/analyze:
+    post:
+      tags: [Analysis]
+      summary: Запустить первичный анализ репозитория
+      description: |
+        Ставит в очередь анализ репозитория, которого ещё нет в базе сервиса.
+        Операция не идемпотентна — каждый вызов создаёт новую фоновую задачу,
+        поэтому используется `POST`, а не `GET` или `PUT`.
+      operationId: analyzeRepository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/JobAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Анализ этого репозитория уже выполняется
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /repositories/{id}/reanalyze:
+    parameters:
+      - $ref: '#/components/parameters/RepositoryId'
+    post:
+      tags: [Analysis]
+      summary: Повторный пересчёт репозитория
+      description: |
+        Ручной перезапуск анализа уже известного репозитория. Сценарий
+        «первичный и повторный запуск анализа» из требований к демонстрации.
+
+        Поле `last_analyzed_at` обновляется по завершении задачи, а не в момент
+        приёма запроса.
+      operationId: reanalyzeRepository
+      responses:
+        '202':
+          $ref: '#/components/responses/JobAccepted'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Пересчёт этого репозитория уже выполняется
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /repositories/{id}/report:
+    parameters:
+      - $ref: '#/components/parameters/RepositoryId'
+    get:
+      tags: [Reports]
+      summary: Выгрузить отчёт в Markdown или PDF
+      description: |
+        Файл собирается из последнего завершённого анализа. Ответ отдаётся с
+        заголовком `Content-Disposition: attachment`.
+      operationId: downloadReport
+      parameters:
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [markdown, pdf]
+            default: markdown
+      responses:
+        '200':
+          description: Файл отчёта
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: attachment; filename="awesome-project-health.md"
+          content:
+            text/markdown:
+              schema:
+                type: string
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Репозиторий ещё ни разу не анализировался
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: NO_ANALYSIS
+                  message: Для репозитория ещё нет завершённого анализа
+
+  /jobs/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        description: Идентификатор фоновой задачи
+        schema:
+          type: string
+          example: job-a1b2c3
+    get:
+      tags: [Jobs]
+      summary: Статус фоновой задачи анализа
+      description: |
+        Используется фронтендом для поллинга прогресса после запуска анализа.
+        Рекомендуемый интервал опроса — 2 секунды.
+      operationId: getJob
+      responses:
+        '200':
+          description: Текущее состояние задачи
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /user/repositories:
+    get:
+      tags: [User]
+      summary: '[v0.3] Репозитории авторизованного пользователя'
+      description: |
+        Не реализовано в версии 0.2. Описано заранее, чтобы зафиксировать
+        контракт раздела «Мои репозитории».
+
+        Приватные репозитории никогда не попадают в публичный рейтинг
+        `GET /repositories` и доступны только владельцу.
+      operationId: listUserRepositories
+      security:
+        - YandexID: []
+      responses:
+        '200':
+          description: Список доступных пользователю репозиториев
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserRepository'
+        '401':
+          description: Отсутствует или недействителен токен Я ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '501':
+          description: Не реализовано в текущей версии
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: NOT_IMPLEMENTED
+                  message: Авторизация через Я ID появится в версии 0.3
+
+components:
+
+  securitySchemes:
+    YandexID:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Токен, полученный при авторизации через Я ID. Используется только ручками раздела User в версии 0.3.
+
+  parameters:
+    RepositoryId:
+      name: id
+      in: path
+      required: true
+      description: Внутренний идентификатор репозитория в сервисе
+      schema:
+        type: string
+        example: repo-123
+
+  responses:
+    JobAccepted:
+      description: Задача принята в очередь
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/JobAccepted'
+    BadRequest:
+      description: Некорректные параметры запроса
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INVALID_REPOSITORY_URL
+              message: URL не распознан как репозиторий SourceCraft
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: REPOSITORY_NOT_FOUND
+              message: Репозиторий не найден в SourceCraft
+    TooManyRequests:
+      description: Превышен лимит запусков анализа
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: RATE_LIMIT_EXCEEDED
+              message: Слишком много запусков анализа, попробуйте позже
+
+  schemas:
+
+    AnalysisStatus:
+      type: string
+      description: |
+        Состояние анализа репозитория.
+        `PARTIAL` — задача завершилась с ошибкой на части источников, но
+        рассчитанные категории доступны.
+      enum: [PENDING, IN_PROGRESS, COMPLETED, PARTIAL, FAILED]
+      example: COMPLETED
+
+    MetricStatus:
+      type: string
+      description: |
+        `OK` — метрика рассчитана. `NO_DATA` — источник недоступен или данных
+        нет; категория исключается из взвешивания и не считается дефектом.
+      enum: [OK, NO_DATA]
+      example: OK
+
+    Priority:
+      type: string
+      enum: [HIGH, MEDIUM, LOW]
+      example: HIGH
+
+    RepositorySummary:
+      type: object
+      description: Строка публичного рейтинга
+      required: [id, name, url, health_score, likes, language, last_activity_at, status]
+      properties:
+        id:
+          type: string
+          example: repo-123
+        name:
+          type: string
+          example: awesome-lib
+        url:
+          type: string
+          format: uri
+          description: Ссылка на репозиторий в SourceCraft
+          example: https://sourcecraft.dev/user/awesome-lib
+        health_score:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: '`null`, если репозиторий ещё ни разу не анализировался'
+          example: 92
+        likes:
+          type: integer
+          example: 1200
+        language:
+          type: string
+          nullable: true
+          example: Python
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-09-15T10:20:00Z'
+        last_analyzed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-09-17T03:00:00Z'
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+
+    RepositoryPage:
+      type: object
+      required: [items, page, limit, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RepositorySummary'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          description: Общее число репозиториев, подходящих под фильтр
+          example: 1487
+
+    Metric:
+      type: object
+      description: Оценка по одной из шести категорий
+      required: [score, status, weight]
+      properties:
+        score:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: '`null` при `status: NO_DATA`'
+          example: 61
+        status:
+          $ref: '#/components/schemas/MetricStatus'
+        summary:
+          type: string
+          description: Человекочитаемое объяснение оценки
+          example: Две критические уязвимости в зависимостях
+        weight:
+          type: number
+          format: float
+          description: |
+            Фактический вес категории в итоговом Score после нормализации.
+            Отдаётся наружу, чтобы расчёт можно было воспроизвести.
+          example: 0.2
+        details:
+          type: object
+          additionalProperties: true
+          description: Сырые показатели категории для раскрывающегося блока в UI
+          example:
+            critical: 2
+            high: 0
+            medium: 5
+
+    Metrics:
+      type: object
+      description: Шесть основных категорий анализа
+      required: [documentation, ci_cd, security, activity, issues, code_health]
+      properties:
+        documentation:
+          $ref: '#/components/schemas/Metric'
+        ci_cd:
+          $ref: '#/components/schemas/Metric'
+        security:
+          $ref: '#/components/schemas/Metric'
+        activity:
+          $ref: '#/components/schemas/Metric'
+        issues:
+          $ref: '#/components/schemas/Metric'
+        code_health:
+          $ref: '#/components/schemas/Metric'
+
+    Evidence:
+      type: object
+      description: Подтверждающий факт, на который ссылается рекомендация
+      required: [type, ref]
+      properties:
+        type:
+          type: string
+          enum: [file, pipeline, vulnerability, commit, issue, merge_request]
+          example: vulnerability
+        ref:
+          type: string
+          example: CVE-2025-1234
+        url:
+          type: string
+          format: uri
+          nullable: true
+          example: https://sourcecraft.dev/user/awesome-project/security/CVE-2025-1234
+
+    Recommendation:
+      type: object
+      required: [id, priority, category, title, description]
+      properties:
+        id:
+          type: string
+          example: rec-1
+        priority:
+          $ref: '#/components/schemas/Priority'
+        category:
+          type: string
+          enum: [documentation, ci_cd, security, activity, issues, code_health]
+          example: security
+        title:
+          type: string
+          example: Обновите зависимости с критическими уязвимостями
+        description:
+          type: string
+          description: Проблема, почему она важна и рекомендуемое действие
+          example: Найдено 2 CVE в package.json по данным AppSec SourceCraft
+        impact:
+          type: string
+          description: Ожидаемое влияние исправления на Repo Health Score
+          example: +8 к Security
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evidence'
+
+    RepositoryDetail:
+      type: object
+      description: Полный отчёт для страницы анализа
+      required: [id, name, url, health_score, status, metrics, recommendations]
+      properties:
+        id:
+          type: string
+          example: repo-123
+        name:
+          type: string
+          example: awesome-project
+        url:
+          type: string
+          format: uri
+          example: https://sourcecraft.dev/user/awesome-project
+        language:
+          type: string
+          nullable: true
+          example: Python
+        health_score:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          example: 74
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        last_analyzed_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-09-17T17:00:00Z'
+        metrics:
+          $ref: '#/components/schemas/Metrics'
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+        missing_data:
+          type: array
+          description: Показатели, которые не удалось собрать
+          items:
+            type: string
+          example: [ci_cd.pipeline_duration]
+
+    AnalyzeRequest:
+      type: object
+      required: [repository_url]
+      properties:
+        repository_url:
+          type: string
+          format: uri
+          description: Ссылка на открытый репозиторий SourceCraft
+          example: https://sourcecraft.dev/user/my-repo
+
+    JobAccepted:
+      type: object
+      required: [job_id, repository_id, status, status_url]
+      properties:
+        job_id:
+          type: string
+          example: job-a1b2c3
+        repository_id:
+          type: string
+          example: repo-456
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        queued_at:
+          type: string
+          format: date-time
+          example: '2026-09-17T17:05:00Z'
+        status_url:
+          type: string
+          description: Путь для опроса статуса задачи
+          example: /api/v1/jobs/job-a1b2c3
+
+    Job:
+      type: object
+      required: [job_id, repository_id, status]
+      properties:
+        job_id:
+          type: string
+          example: job-a1b2c3
+        repository_id:
+          type: string
+          example: repo-456
+        status:
+          $ref: '#/components/schemas/AnalysisStatus'
+        progress:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.42
+        stage:
+          type: string
+          enum: [CLONING, METADATA, SECURITY_SCAN, CODE_SCAN, SCORING]
+          nullable: true
+          example: SECURITY_SCAN
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-09-17T17:05:03Z'
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+        error:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ErrorBody'
+
+    UserRepository:
+      type: object
+      description: '[v0.3] Репозиторий, доступный авторизованному пользователю'
+      required: [id, name, private]
+      properties:
+        id:
+          type: string
+          example: repo-789
+        name:
+          type: string
+          example: my-private-lib
+        private:
+          type: boolean
+          example: true
+        health_score:
+          type: integer
+          nullable: true
+          example: 64
+        likes:
+          type: integer
+          example: 3
+        language:
+          type: string
+          nullable: true
+          example: Go
+        last_activity_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: REPOSITORY_NOT_FOUND
+        message:
+          type: string
+          example: Репозиторий не найден в SourceCraft
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
