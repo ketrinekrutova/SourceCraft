@@ -21,12 +21,26 @@ CATEGORY_WEIGHTS: dict[str, int] = {
 }
 
 
+EvidenceType = Literal["file", "pipeline", "vulnerability", "commit", "issue", "merge_request"]
+
+
+@dataclass
+class Evidence:
+    """Тип известен в момент создания (кто вызывает — тот и знает, что это issue или vulnerability),
+    поэтому хранится сразу структурой, а не строкой "issue-42" — иначе тип пришлось бы
+    угадывать парсингом строки при сборке ответа API (schemas/analysis.py ждёт ту же форму)."""
+
+    type: EvidenceType
+    ref: str
+    url: str | None = None
+
+
 @dataclass
 class CategoryScore:
     score: int | None  # 0..100, либо None при status == "no_data"
     status: Status
     explanation: str
-    evidence: list[str] = field(default_factory=list)
+    evidence: list[Evidence] = field(default_factory=list)
 
 
 @dataclass
@@ -37,7 +51,7 @@ class Recommendation:
     action: str
     priority: Priority
     expected_impact: str
-    evidence: list[str] = field(default_factory=list)
+    evidence: list[Evidence] = field(default_factory=list)
 
 
 @dataclass
