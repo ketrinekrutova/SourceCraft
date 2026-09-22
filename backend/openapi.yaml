@@ -542,8 +542,8 @@ components:
 
     RepositoryDetail:
       type: object
-      description: Полный отчёт для страницы анализа
-      required: [id, name, url, health_score, status, metrics, recommendations]
+      description: Полный отчёт для страницы анализа.
+      required: [id, name, url, health_score, verdict, status, metrics, recommendations]
       properties:
         id:
           type: string
@@ -551,6 +551,10 @@ components:
         name:
           type: string
           example: awesome-project
+        verdict:
+          type: string
+          description: Короткий текстовый вердикт по итоговому Score, для страницы анализа
+          example: Хорошее состояние, есть точки роста
         url:
           type: string
           format: uri
@@ -578,12 +582,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Recommendation'
-        missing_data:
-          type: array
-          description: Показатели, которые не удалось собрать
-          items:
-            type: string
-          example: [ci_cd.pipeline_duration]
 
     AnalyzeRequest:
       type: object
