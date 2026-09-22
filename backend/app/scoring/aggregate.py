@@ -1,7 +1,28 @@
-from .result import CategoryScore
+from .result import CATEGORY_WEIGHTS, CategoryScore
 
 
 def aggregate(categories: dict[str, CategoryScore]) -> int | None:
+     available = []
+
+    for name, category in categories.items():
+        if category.status == "ok" and category.score is not None:
+            available.append((name, category))
+
+    if not available:
+        return 'Невозможно дать оценку репозиторию'
+
+    weighted_sum = 0
+    total_weight = 0
+
+    for name, category in available:
+        weight = CATEGORY_WEIGHTS[name]
+
+        weighted_sum += category.score * weight
+        total_weight += weight
+
+    score = weighted_sum / total_weight
+
+    return round(score)
     """
     README 3.1: категории со status="no_data" исключаются из суммы, веса остальных
     перенормируются (CATEGORY_WEIGHTS из result.py), а не подставляется 0.
