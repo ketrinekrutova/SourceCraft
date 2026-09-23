@@ -2,14 +2,25 @@ from .result import CATEGORY_WEIGHTS, CategoryScore
 
 
 def aggregate(categories: dict[str, CategoryScore]) -> int | None:
-     available = []
+    """
+    README 3.1: категории со status="no_data" исключаются из суммы, веса остальных
+    перенормируются (CATEGORY_WEIGHTS из result.py), а не подставляется 0.
+
+    "Все 6 категорий no_data одновременно" физически недостижимо при обычной работе (по нашим
+    правилам no_data бывает только у Security/Issues/Activity/Code health, а Documentation
+    no_data — только при is_empty_repo, что обрабатывается ДО вызова этой функции, отдельным
+    сценарием CHECK.md №5). Тем не менее для защиты от деления на ноль: если available пуст,
+    вернуть None, а не падать — вызывающий код должен считать это тем же самым "нет данных"
+    для всего репозитория.
+    """
+    available = []
 
     for name, category in categories.items():
         if category.status == "ok" and category.score is not None:
             available.append((name, category))
 
     if not available:
-        return 'Невозможно дать оценку репозиторию'
+        return None
 
     weighted_sum = 0
     total_weight = 0
@@ -23,18 +34,6 @@ def aggregate(categories: dict[str, CategoryScore]) -> int | None:
     score = weighted_sum / total_weight
 
     return round(score)
-    """
-    README 3.1: категории со status="no_data" исключаются из суммы, веса остальных
-    перенормируются (CATEGORY_WEIGHTS из result.py), а не подставляется 0.
-
-    "Все 6 категорий no_data одновременно" физически недостижимо при обычной работе (по нашим
-    правилам no_data бывает только у Security/Issues/Activity/Code health, а Documentation
-    no_data — только при is_empty_repo, что обрабатывается ДО вызова этой функции, отдельным
-    сценарием CHECK.md №5). Тем не менее для защиты от деления на ноль: если available пуст,
-    вернуть None, а не падать — вызывающий код должен считать это тем же самым "нет данных"
-    для всего репозитория.
-    """
-    raise NotImplementedError
 
 
 def verdict(score: int) -> str:
