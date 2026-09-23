@@ -1,0 +1,63 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.item {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
+  padding: 18px 22px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.priority {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.priorityHigh {
+  background: #c65b5b;
+}
+
+.priorityMedium {
+  background: #c8a349;
+}
+
+.priorityLow {
+  background: #6f9c76;
+}
+
+.body {
+  flex: 1;
+}
+
+.itemTitle {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.itemDescription {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.itemImpact {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.empty {
+  color: var(--text-muted);
+  font-style: italic;
+}

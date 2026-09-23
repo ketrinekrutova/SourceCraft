@@ -1,0 +1,85 @@
+.page {
+  min-height: 100%;
+  background-image: url("../assets/background.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  padding: 32px 0 64px;
+  display: flex;
+  justify-content: center;
+}
+
+.frame {
+  width: var(--page-width);
+  flex-shrink: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.logo {
+  font-family: "Dela Gothic One", "Inter", sans-serif;
+  font-size: 40px;
+  color: var(--brand-text);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  line-height: 1.2;
+}
+
+.logoDivider {
+  opacity: 0.6;
+}
+
+/* У внешнего элемента фона нет вообще (иначе backdrop-filter внутреннего слоя видел бы его,
+   а не настоящий фон страницы). Кольцо-обводка рисуется через ::before с маской "рамка" —
+   в центре она физически прозрачная (mask-composite: exclude), не просто прикрыта сверху. */
+.authButton {
+  position: relative;
+  border: none;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+
+.authButton::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 3px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.authButtonInner {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: var(--brand-text);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.authButton:hover .authButtonInner {
+  filter: brightness(1.05);
+}
+
+.content {
+  width: 100%;
+}

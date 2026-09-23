@@ -1,0 +1,106 @@
+.wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+/* Та же техника, что у кнопки входа (Layout.module.css): внешний слой без фона — только
+   рамка через ::before с маской-кольцом (физически прозрачный центр, не просвечивает
+   градиент через полупрозрачную заливку), внутренний — блюр + заливка. Ширина обводки — 2px. */
+.trigger {
+  position: relative;
+  border: none;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+
+.trigger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.triggerInner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-pill);
+  padding: 10px 18px;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: #2d2d2d;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.chevron {
+  display: inline-block;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/* Открытие — плавное разворачивание сверху вниз + лёгкое всплытие, а не мгновенное появление
+   нативного <select>. */
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 2px;
+  border-radius: 16px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-card);
+  transform-origin: top center;
+  transform: scaleY(0.85) translateY(-4px);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.16s ease, opacity 0.16s ease, visibility 0.16s;
+}
+
+.menuOpen {
+  transform: scaleY(1) translateY(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.option {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d2d2d;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.option:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.optionActive {
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.5);
+}

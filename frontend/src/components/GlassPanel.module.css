@@ -1,0 +1,32 @@
+/* По умолчанию — светлая плашка (мета-карточка репозитория, карточка Score/графика).
+   Обводка — та же выпуклая, что у CategoryCard, но заливка светлая. */
+.panel {
+  position: relative;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-card);
+  padding: 28px;
+  color: #2d2d2d;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 3px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Тёмный вариант — только для блока "Рекомендации" (тот же цвет, что у CategoryCard/таблицы),
+   остальные плашки (мета-карточка, Score) остаются светлыми. */
+.dark {
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}

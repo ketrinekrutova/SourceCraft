@@ -1,0 +1,104 @@
+.wrapper {
+  position: relative;
+  color: #2d2d2d;
+  margin: 0 auto;
+  animation: folderTabsAppear 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes folderTabsAppear {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+    filter: drop-shadow(0 40px 50px rgba(0, 0, 0, 0.35));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+  }
+}
+
+.shape {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 0 28px 28px;
+}
+
+.sharedFill {
+  position: absolute;
+  inset: 0;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--folder-cap-height);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  top: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+}
+
+.labelText {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 16px;
+}
+
+/* Активная — просто текст внутри уже вырезанной под неё формы (заливка+обводка приходят
+   от .sharedFill/.border), своего фона/рамки не рисует. */
+.labelActive {
+  color: #2d2d2d;
+}
+
+/* Неактивные — отдельные "закрытые папки": собственная заливка + выпуклая обводка (тот же
+   приём ::before-кольца, что у CategoryCard), сидят поверх общего капота, но с ним не сшиты. */
+.labelInactive {
+  top: 3px;
+  height: 54px;
+  margin: 0 3px;
+  border-radius: 15px 15px 0 0;
+  background: rgba(0, 0, 0, 0.15);
+  color: #575757;
+}
+
+.labelInactive::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 3px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.sides {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--folder-cap-height);
+  border-left: 5px solid #575757;
+  border-right: 5px solid #575757;
+  border-bottom: 5px solid #575757;
+  border-radius: 0 0 24px 24px;
+  padding: 28px;
+}

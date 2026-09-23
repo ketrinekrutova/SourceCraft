@@ -1,0 +1,67 @@
+/* Тот же цвет, что и у таблицы на странице рейтинга (RatingPage.module.css .table) —
+   единообразная "плашка" по всему сайту. Обводка — тот же приём с ::before-кольцом, что у
+   кнопки входа/дропдауна (маска делает центр физически прозрачным), только 3px. */
+.card {
+  position: relative;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 22px;
+  padding: 22px 24px;
+  color: #2d2d2d;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 3px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.barTrack {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.barValue {
+  font-weight: 700;
+  min-width: 28px;
+  text-align: right;
+}
+
+.summary {
+  color: #2d2d2d;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.noData {
+  color: #2d2d2d;
+  font-style: italic;
+  font-size: 14px;
+}

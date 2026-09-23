@@ -1,0 +1,56 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Dela+Gothic+One&display=swap");
+
+:root {
+  /* Принудительно светлая схема — иначе браузер может рисовать нативные элементы (скроллбар,
+     системные подсказки) по теме ОС, даже когда весь остальной дизайн уже фиксированно светлый. */
+  color-scheme: light;
+
+  --radius-card: 28px;
+  --radius-pill: 999px;
+  --glass-bg: rgba(255, 255, 255, 0.5);
+  --glass-bg-strong: rgba(255, 255, 255, 0.2);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-blur: 2px;
+  --text-dark: #2d2d2d;
+  --text-muted: #5f5f5f;
+  --pill-bg: rgba(0, 0, 0, 0.08);
+  --pill-bg-strong: rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.12);
+
+  /* Точные значения по брифу: логотип, кнопка входа, "папка" таба рейтинга.
+     pill-fill сделан прозрачнее (0.12 вместо 0.25) и блюр меньше — фон-картинка должна быть
+     заметно виднее сквозь заливку. */
+  --brand-text: #575757;
+  --pill-fill: rgba(229, 229, 229, 0.3);
+  /* Вертикально: белый сверху -> серый снизу, как тень/фаска на выпуклой кнопке */
+  --convex-gradient: linear-gradient(180deg, #ffffff 0%, #8e8e8e 62%, #575757 100%);
+  --page-width: 1280px; /* MacBook Air 13", логическое разрешение по умолчанию */
+}
+
+/* Тёмная тема сознательно не поддерживается — весь дизайн завязан на точные фиксированные
+   hex-цвета из брифа, автоподстройка под системную тему им противоречит. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-dark);
+  background: #cfe0e8;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}

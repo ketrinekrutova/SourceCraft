@@ -1,0 +1,96 @@
+.wrapper {
+  position: relative;
+  color: #2d2d2d;
+  margin: 0 auto;
+  animation: folderAppear 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Ощущение "новая папка ложится поверх предыдущей": появляется чуть ниже и мельче, с более
+   тяжёлой тенью (как будто ещё в воздухе), затем встаёт на место с обычной лёгкой тенью. */
+@keyframes folderAppear {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+    filter: drop-shadow(0 40px 50px rgba(0, 0, 0, 0.35));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 0 rgba(0, 0, 0, 0));
+  }
+}
+
+/* Внешняя фигура целиком: скругляет и обрезает низ (overflow:hidden), реальная высота — по
+   контенту. Верхний контур (капот) неправильной формы — за него отвечает .sharedFill/.border. */
+.shape {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 0 28px 28px;
+}
+
+/* Один слой блюра+заливки на всю фигуру сразу (капот + тело) — размывает фон один раз целиком,
+   поэтому текстура размытия не рвётся на стыке (см. комментарий в FolderTab.tsx). */
+.sharedFill {
+  position: absolute;
+  inset: 0;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.border {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--folder-cap-height);
+  overflow: visible; /* SVG по умолчанию сам себе overflow:hidden — без этого обрезает
+    половину штриха (5px) там, где путь идёт ровно по краю viewBox (верх, левый/правый край) */
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--folder-tab-width);
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Дополнительные вкладки (например "Мои репозитории" после входа) — простые плоские чипы
+   рядом с папкой, без сложной формы, чтобы не переусложнять то, чего нет на макете. */
+.extraTab {
+  position: absolute;
+  top: 12px;
+  padding: 12px 24px;
+  border-radius: 16px 16px 0 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border-bottom: none;
+  background: var(--glass-bg);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Тело (низ) — сплошная обводка по бокам и снизу тем же конечным цветом градиента (#575757),
+   что и низ SVG-обводки капота (см. FolderTab.tsx BORDER_PATH) — стыкуется без видимого шва,
+   т.к. это ровно тот же цвет, а не градиент, запущенный заново. */
+.sides {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--folder-cap-height);
+  border-left: 5px solid #575757;
+  border-right: 5px solid #575757;
+  border-bottom: 5px solid #575757;
+  border-radius: 0 0 24px 24px;
+  padding: 28px;
+}

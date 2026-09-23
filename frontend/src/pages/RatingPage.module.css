@@ -1,0 +1,67 @@
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 20px;
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  color: #2d2d2d;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 20px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.table th {
+  text-align: left;
+  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.06);
+  font-weight: 600;
+  font-size: 14px;
+  color: #2d2d2d;
+}
+
+.table td {
+  background: transparent;
+  padding: 16px 20px;
+  font-size: 15px;
+  color: #2d2d2d;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.row:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.rank {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #2d2d2d;
+}
+
+.projectLink {
+  text-decoration: underline;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.scoreCell {
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: #2d2d2d;
+}
