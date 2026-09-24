@@ -3,12 +3,22 @@ from ..result import CategoryScore
 
 
 def score_documentation(facts: DocumentationFacts) -> CategoryScore:
-    """
-    README 3.2, Документация (15%) — чек-лист, сумма = 100:
-      README есть: 20 | README с секциями install/usage/build: 15
-      LICENSE: 20 | CONTRIBUTING: 10 | CODEOWNERS: 10
-      манифест сборки/тестов: 15 | структура каталогов: 10
-
-    is_empty_repo == True -> status="no_data" (весь репозиторий, не только категория).
-    """
-    raise NotImplementedError
+    score = 0
+    if facts.has_readme == True:
+      score+=20
+    if facts.readme_has_key_sections == True:
+      score += 15
+    if facts.has_license == True:
+      score += 20
+    if facts.has_contributing == True:
+      score +=10
+    if facts.has_codeowners == True:
+      score += 10
+    if facts.has_build_manifest == True:
+      score += 15
+    if facts.has_directory_structure == True:
+      score += 10
+    if facts.is_empty_repo == True:
+      return CategoryScore(score=None, status='no_data')
+    else:
+      return CategoryScore(score=score,status='ok')
