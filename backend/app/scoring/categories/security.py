@@ -3,12 +3,9 @@ from ..result import CategoryScore
 
 
 def score_security(facts: SecurityFacts) -> CategoryScore:
-    """
-    README 3.2, Security (20%):
-      penalty = 20*count(CRITICAL) + 10*count(HIGH) + 4*count(MEDIUM) + 1*count(LOW)
+      penalty = 20*facts.open_critical_count + 10*facts.open_high_count + 4*facts.open_medium_count + 1*facts.open_low_count
       score   = max(0, 100 - penalty)
-
-    has_ever_scanned == False -> status="no_data" (сканов не было, см. README 3.1).
-    Учитывать только открытые находки (не RESOLVED*).
-    """
-    raise NotImplementedError
+      if facts.has_ever_scanned == False:
+        return CategoryScore(score=None, status='no_data')
+      else:
+        return CategoryScore(score=score, status='ok')
