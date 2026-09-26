@@ -1,4 +1,5 @@
-import type { Recommendation } from "../api/types";
+import { CATEGORY_LABELS, type Recommendation } from "../api/types";
+import { EvidenceList } from "./EvidenceList";
 import styles from "./RecommendationsList.module.css";
 
 const PRIORITY_CLASS: Record<Recommendation["priority"], string> = {
@@ -22,11 +23,26 @@ export function RecommendationsList({ items }: { items: Recommendation[] }) {
     <div className={styles.list}>
       {items.map((rec) => (
         <div key={rec.id} className={styles.item}>
-          <span className={`${styles.priority} ${PRIORITY_CLASS[rec.priority]}`}>{PRIORITY_LABEL[rec.priority]}</span>
+          <div className={styles.side}>
+            <span className={`${styles.priority} ${PRIORITY_CLASS[rec.priority]}`}>{PRIORITY_LABEL[rec.priority]}</span>
+            <span className={styles.category}>{CATEGORY_LABELS[rec.category]}</span>
+          </div>
           <div className={styles.body}>
             <div className={styles.itemTitle}>{rec.title}</div>
-            <div className={styles.itemDescription}>{rec.description}</div>
-            {rec.impact && <div className={styles.itemImpact}>{rec.impact}</div>}
+            <dl className={styles.fields}>
+              <dt>Почему важно</dt>
+              <dd>{rec.why_it_matters}</dd>
+              <dt>Что сделать</dt>
+              <dd>{rec.action}</dd>
+              {rec.facts && (
+                <>
+                  <dt>Факты</dt>
+                  <dd>{rec.facts}</dd>
+                </>
+              )}
+            </dl>
+            <EvidenceList items={rec.evidence} limit={5} />
+            {rec.impact && <div className={styles.itemImpact}>Эффект: {rec.impact}</div>}
           </div>
         </div>
       ))}

@@ -13,7 +13,7 @@ const GAP = 28;
 const TAB_H = 60;
 const R = 16;
 const CAP_H = TAB_H + R;
-// Насколько далеко продлить боковые края заливки вниз — реальную высоту тела заранее не
+// Насколько далеко продлить боковые края заливки вниз - реальную высоту тела заранее не
 // знаем (зависит от контента), а overflow:hidden у .shape всё равно обрежет лишнее по факту.
 const EXTEND = 4000;
 
@@ -22,16 +22,16 @@ function isActivePath(pathname: string, to: string, end?: boolean): boolean {
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
-// Верхний контур зависит от положения активной вкладки: первая — вырез только справа (панель
-// и вкладка делят общий левый край); последняя — вырез только слева (зеркально); посередине —
+// Верхний контур зависит от положения активной вкладки: первая - вырез только справа (панель
+// и вкладка делят общий левый край); последняя - вырез только слева (зеркально); посередине -
 // вырез с обеих сторон. Сегменты дуг те же, что уже проверены вручную для одиночной вкладки
-// (FolderTab.tsx) — левый вырез: sweep=0, центр в (tabStart-R, TAB_H-R); правый вырез: sweep=0,
-// центр в (tabEnd+R, TAB_H-R); обычные скругления — sweep=1.
+// (FolderTab.tsx) - левый вырез: sweep=0, центр в (tabStart-R, TAB_H-R); правый вырез: sweep=0,
+// центр в (tabEnd+R, TAB_H-R); обычные скругления - sweep=1.
 function buildTopPath(tabStart: number, tabEnd: number, bottomY: number): string {
   const leftFlush = tabStart <= 0;
   const rightFlush = tabEnd >= W;
 
-  // Обе ветки стартуют из одной и той же точки (0, bottomY) — иначе при leftFlush=true
+  // Обе ветки стартуют из одной и той же точки (0, bottomY) - иначе при leftFlush=true
   // терялся весь левый край фигуры (был баг: путь начинался сразу с (R,0), без спуска к низу).
   const left = leftFlush
     ? `M 0,${bottomY} V ${R} A ${R},${R} 0 0 1 ${R},0`
@@ -47,13 +47,13 @@ function buildTopPath(tabStart: number, tabEnd: number, bottomY: number): string
 }
 
 function buildFillPath(tabStart: number, tabEnd: number): string {
-  // Начало и конец пути теперь всегда совпадают в (0, EXTEND) — просто "H 0 Z" замыкает,
+  // Начало и конец пути теперь всегда совпадают в (0, EXTEND) - просто "H 0 Z" замыкает,
   // отдельная обработка leftFlush для замыкания больше не нужна.
   return `${buildTopPath(tabStart, tabEnd, EXTEND)} H 0 Z`;
 }
 
 function buildBorderPath(tabStart: number, tabEnd: number): string {
-  // Открытый контур (не замыкается) — только видимая верхняя обводка, до высоты капота.
+  // Открытый контур (не замыкается) - только видимая верхняя обводка, до высоты капота.
   return buildTopPath(tabStart, tabEnd, CAP_H);
 }
 
@@ -92,7 +92,7 @@ export function FolderTabs({ tabs, children }: { tabs: FolderTabDef[]; children:
         })}
         <div className={styles.sides}>{children}</div>
       </div>
-      {/* Обводка — отдельный SVG поверх, не внутри .shape (у него overflow:hidden обрезал бы
+      {/* Обводка - отдельный SVG поверх, не внутри .shape (у него overflow:hidden обрезал бы
           половину штриха неравномерно, см. разбор в FolderTab.tsx). */}
       <svg className={styles.border} viewBox={`0 0 ${W} ${CAP_H}`} preserveAspectRatio="none">
         <defs>

@@ -10,6 +10,7 @@ from .enums import AnalysisStatus
 class RepositorySummary(BaseModel):
     id: str
     name: str
+    full_name: str
     url: str
     health_score: int | None
     likes: int
@@ -17,6 +18,13 @@ class RepositorySummary(BaseModel):
     last_activity_at: datetime | None
     last_analyzed_at: datetime | None
     status: AnalysisStatus
+    coverage: float | None = None
+
+
+class CatalogSummary(BaseModel):
+    catalog_total: int
+    analyzed_total: int
+    last_analyzed_at: datetime | None
 
 
 class RepositoryPage(BaseModel):
@@ -24,3 +32,4 @@ class RepositoryPage(BaseModel):
     page: int
     limit: int
     total: int
+    summary: CatalogSummary

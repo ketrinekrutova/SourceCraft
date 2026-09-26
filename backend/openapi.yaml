@@ -1,484 +1,832 @@
-openapi: 3.0.3
-
+# Сгенерировано из кода: cd backend && python -c "import yaml; from app.main import app; yaml.safe_dump(app.openapi(), open('openapi.yaml', 'w', encoding='utf-8'), allow_unicode=True, sort_keys=False)"
+openapi: 3.1.0
 info:
   title: SourceCraft Repo Health API
-  version: 0.2.0
-  description: |
-    API сервиса оценки здоровья открытых репозиториев SourceCraft.
-
-    Сервис регулярно анализирует репозитории, рассчитывает Repo Health Score
-    от 0 до 100 по шести категориям, объясняет оценку и формирует
-    приоритизированные рекомендации.
-
-    **Границы версии 0.2.** Авторизация через Я ID и раздел «Мои репозитории»
-    не реализованы — все ручки публичные, анализ запускается по URL открытого
-    репозитория. Схема `UserRepository` и security scheme `YandexID` описаны
-    заранее, чтобы добавление авторизации в 0.3 не ломало существующие контракты.
-
-    **Асинхронность.** Анализ репозитория — фоновая задача: запуск возвращает
-    `202 Accepted` с `job_id`, прогресс опрашивается через `GET /jobs/{job_id}`.
-
-    **Нет данных ≠ плохо.** Если метрику посчитать не удалось, категория
-    возвращается со `status: NO_DATA` и `score: null`, исключается из
-    взвешивания, а веса оставшихся категорий нормализуются.
-  contact:
-    name: Repo Health team
-  license:
-    name: MIT
-
-servers:
-  - url: https://{host}/api/v1
-    description: Демонстрационный стенд
-    variables:
-      host:
-        default: localhost:8080
-
-tags:
-  - name: Ranking
-    description: Публичный рейтинг здоровья открытых репозиториев
-  - name: Analysis
-    description: Детальный отчёт и запуск анализа
-  - name: Jobs
-    description: Статус фоновых задач
-  - name: Reports
-    description: Выгрузка отчётов
-  - name: User
-    description: Отложено до v0.3 — требует авторизации через Я ID
-
+  version: 1.0.0
+  description: 'API сервиса SourceCraft Repo Health. Файл сгенерирован из кода (app.openapi()),
+    живая версия - /api/docs. Ошибки: {"error": {"code", "message"}}. Анализ асинхронный:
+    202 + job_id, статус - GET /api/v1/jobs/{job_id}. scope=public - публичный анализ
+    (рейтинг), scope=personal - личный по PAT пользователя.'
 paths:
-
-  /repositories:
+  /api/v1/repositories:
     get:
-      tags: [Ranking]
-      summary: Рейтинг открытых репозиториев
-      description: |
-        Список проанализированных открытых репозиториев с фильтрацией по языку
-        и сортировкой по Repo Health Score, лайкам или дате последней активности.
-        Здоровье проекта — сортировка по умолчанию: рейтинг не должен
-        превращаться в список популярности.
-      operationId: listRepositories
+      tags:
+      - Ranking
+      summary: List Repositories
+      description: 'Публичный рейтинг. Только публичные репозитории и только публичные
+        анализы - личные
+
+        результаты (с AppSec по PAT владельца) сюда не попадают. Score - сортировка
+        по умолчанию и
+
+        главный вторичный ключ при любой сортировке: рейтинг не превращается в список
+        популярности.'
+      operationId: list_repositories_api_v1_repositories_get
       parameters:
-        - name: language
-          in: query
-          description: Фильтр по основному языку репозитория
-          required: false
-          schema:
-            type: string
-            example: Python
-        - name: sort_by
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [health_score, likes, last_activity]
-            default: health_score
-        - name: order
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-        - name: page
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 1
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
+      - name: language
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Language
+      - name: sort_by
+        in: query
+        required: false
+        schema:
+          type: string
+          default: health_score
+          title: Sort By
+      - name: order
+        in: query
+        required: false
+        schema:
+          type: string
+          default: desc
+          title: Order
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Limit
       responses:
         '200':
-          description: Страница рейтинга
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepositoryPage'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /repositories/{id}:
-    parameters:
-      - $ref: '#/components/parameters/RepositoryId'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/repositories/languages:
     get:
-      tags: [Analysis]
-      summary: Детальный отчёт по репозиторию
-      description: |
-        Итоговый Repo Health Score, оценки по шести категориям с объяснением и
-        весами, список приоритизированных рекомендаций с подтверждающими
-        фактами, перечень недоступных данных и дата последнего анализа.
-      operationId: getRepository
+      tags:
+      - Ranking
+      summary: List Languages
+      operationId: list_languages_api_v1_repositories_languages_get
       responses:
         '200':
-          description: Отчёт по репозиторию
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  type: string
+                type: array
+                title: Response List Languages Api V1 Repositories Languages Get
+  /api/v1/repositories/{repo_id}:
+    get:
+      tags:
+      - Analysis
+      summary: Get Repository
+      description: 'Отчёт по репозиторию. scope=public - публичный анализ (как в рейтинге);
+
+        scope=personal - личный анализ по PAT пользователя (с AppSec), только для
+        него.'
+      operationId: get_repository_api_v1_repositories__repo_id__get
+      parameters:
+      - name: repo_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Repo Id
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          default: public
+          title: Scope
+      responses:
+        '200':
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepositoryDetail'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /repositories/analyze:
-    post:
-      tags: [Analysis]
-      summary: Запустить первичный анализ репозитория
-      description: |
-        Ставит в очередь анализ репозитория, которого ещё нет в базе сервиса.
-        Операция не идемпотентна — каждый вызов создаёт новую фоновую задачу,
-        поэтому используется `POST`, а не `GET` или `PUT`.
-      operationId: analyzeRepository
-      requestBody:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/repositories/{repo_id}/history:
+    get:
+      tags:
+      - Analysis
+      summary: Get History
+      operationId: get_history_api_v1_repositories__repo_id__history_get
+      parameters:
+      - name: repo_id
+        in: path
         required: true
+        schema:
+          type: string
+          title: Repo Id
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          default: public
+          title: Scope
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryPoint'
+                title: Response Get History Api V1 Repositories  Repo Id  History
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/repositories/analyze:
+    post:
+      tags:
+      - Analysis
+      summary: Analyze Repository
+      description: 'Первичный анализ по ссылке. Идемпотентен по репозиторию: если
+        анализ уже в очереди или
+
+        выполняется - возвращается существующая задача, новая не создаётся.'
+      operationId: analyze_repository_api_v1_repositories_analyze_post
+      requestBody:
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/AnalyzeRequest'
+        required: true
       responses:
         '202':
-          $ref: '#/components/responses/JobAccepted'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Анализ этого репозитория уже выполняется
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAccepted'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /repositories/{id}/reanalyze:
-    parameters:
-      - $ref: '#/components/parameters/RepositoryId'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/repositories/{repo_id}/reanalyze:
     post:
-      tags: [Analysis]
-      summary: Повторный пересчёт репозитория
-      description: |
-        Ручной перезапуск анализа уже известного репозитория. Сценарий
-        «первичный и повторный запуск анализа» из требований к демонстрации.
-
-        Поле `last_analyzed_at` обновляется по завершении задачи, а не в момент
-        приёма запроса.
-      operationId: reanalyzeRepository
+      tags:
+      - Analysis
+      summary: Reanalyze Repository
+      description: Повторный анализ. last_analyzed_at обновится по завершении задачи,
+        а не в момент запроса.
+      operationId: reanalyze_repository_api_v1_repositories__repo_id__reanalyze_post
+      parameters:
+      - name: repo_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Repo Id
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          default: public
+          title: Scope
       responses:
         '202':
-          $ref: '#/components/responses/JobAccepted'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Пересчёт этого репозитория уже выполняется
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobAccepted'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-
-  /repositories/{id}/report:
-    parameters:
-      - $ref: '#/components/parameters/RepositoryId'
-    get:
-      tags: [Reports]
-      summary: Выгрузить отчёт в Markdown или PDF
-      description: |
-        Файл собирается из последнего завершённого анализа. Ответ отдаётся с
-        заголовком `Content-Disposition: attachment`.
-      operationId: downloadReport
-      parameters:
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [markdown, pdf]
-            default: markdown
-      responses:
-        '200':
-          description: Файл отчёта
-          headers:
-            Content-Disposition:
-              schema:
-                type: string
-                example: attachment; filename="awesome-project-health.md"
-          content:
-            text/markdown:
-              schema:
-                type: string
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Репозиторий ещё ни разу не анализировался
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: NO_ANALYSIS
-                  message: Для репозитория ещё нет завершённого анализа
-
-  /jobs/{job_id}:
-    parameters:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/jobs/{job_id}:
+    get:
+      tags:
+      - Analysis
+      - Jobs
+      summary: Get Job
+      operationId: get_job_api_v1_jobs__job_id__get
+      parameters:
       - name: job_id
         in: path
         required: true
-        description: Идентификатор фоновой задачи
         schema:
           type: string
-          example: job-a1b2c3
-    get:
-      tags: [Jobs]
-      summary: Статус фоновой задачи анализа
-      description: |
-        Используется фронтендом для поллинга прогресса после запуска анализа.
-        Рекомендуемый интервал опроса — 2 секунды.
-      operationId: getJob
+          title: Job Id
       responses:
         '200':
-          description: Текущее состояние задачи
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Job'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /user/repositories:
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/repositories/{repo_id}/report:
     get:
-      tags: [User]
-      summary: '[v0.3] Репозитории авторизованного пользователя'
-      description: |
-        Не реализовано в версии 0.2. Описано заранее, чтобы зафиксировать
-        контракт раздела «Мои репозитории».
-
-        Приватные репозитории никогда не попадают в публичный рейтинг
-        `GET /repositories` и доступны только владельцу.
-      operationId: listUserRepositories
-      security:
-        - YandexID: []
+      tags:
+      - Reports
+      summary: Download Report
+      description: Отчёт в Markdown из последнего завершённого анализа - из тех же
+        данных, что и страница.
+      operationId: download_report_api_v1_repositories__repo_id__report_get
+      parameters:
+      - name: repo_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Repo Id
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          default: markdown
+          title: Format
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          default: public
+          title: Scope
       responses:
         '200':
-          description: Список доступных пользователю репозиториев
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/UserRepository'
-        '401':
-          description: Отсутствует или недействителен токен Я ID
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/yandex/login:
+    get:
+      tags:
+      - Auth
+      summary: Yandex Login
+      operationId: yandex_login_api_v1_auth_yandex_login_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/auth/yandex/callback:
+    get:
+      tags:
+      - Auth
+      summary: Yandex Callback
+      operationId: yandex_callback_api_v1_auth_yandex_callback_get
+      parameters:
+      - name: code
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+      - name: state
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: State
+      - name: error
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '501':
-          description: Не реализовано в текущей версии
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: NOT_IMPLEMENTED
-                  message: Авторизация через Я ID появится в версии 0.3
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/dev-login:
+    post:
+      tags:
+      - Auth
+      summary: Dev Login
+      description: 'Только для локальной разработки (DEV_LOGIN_ENABLED=true), пока
+        OAuth-приложение Я ID не
 
+        зарегистрировано. В продакшене выключено.'
+      operationId: dev_login_api_v1_auth_dev_login_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/auth/me:
+    get:
+      tags:
+      - Auth
+      summary: Auth Me
+      operationId: auth_me_api_v1_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Logout
+      operationId: logout_api_v1_auth_logout_post
+      responses:
+        '204':
+          description: Successful Response
+  /api/v1/user/token:
+    put:
+      tags:
+      - User
+      summary: Set Token
+      description: Проверяем токен запросом GET /user и сохраняем только в зашифрованном
+        виде.
+      operationId: set_token_api_v1_user_token_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - User
+      summary: Delete Token
+      operationId: delete_token_api_v1_user_token_delete
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+  /api/v1/user/orgs:
+    put:
+      tags:
+      - User
+      summary: Set Orgs
+      operationId: set_orgs_api_v1_user_orgs_put
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrgsRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/user/repositories:
+    get:
+      tags:
+      - User
+      summary: List User Repositories
+      operationId: list_user_repositories_api_v1_user_repositories_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRepositoryList'
+  /health:
+    get:
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
 components:
-
-  securitySchemes:
-    YandexID:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Токен, полученный при авторизации через Я ID. Используется только ручками раздела User в версии 0.3.
-
-  parameters:
-    RepositoryId:
-      name: id
-      in: path
-      required: true
-      description: Внутренний идентификатор репозитория в сервисе
-      schema:
-        type: string
-        example: repo-123
-
-  responses:
-    JobAccepted:
-      description: Задача принята в очередь
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/JobAccepted'
-    BadRequest:
-      description: Некорректные параметры запроса
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: INVALID_REPOSITORY_URL
-              message: URL не распознан как репозиторий SourceCraft
-    NotFound:
-      description: Ресурс не найден
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: REPOSITORY_NOT_FOUND
-              message: Репозиторий не найден в SourceCraft
-    TooManyRequests:
-      description: Превышен лимит запусков анализа
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error:
-              code: RATE_LIMIT_EXCEEDED
-              message: Слишком много запусков анализа, попробуйте позже
-
   schemas:
-
-    AnalysisStatus:
-      type: string
-      description: |
-        Состояние анализа репозитория.
-        `PARTIAL` — задача завершилась с ошибкой на части источников, но
-        рассчитанные категории доступны.
-      enum: [PENDING, IN_PROGRESS, COMPLETED, PARTIAL, FAILED]
-      example: COMPLETED
-
-    MetricStatus:
-      type: string
-      description: |
-        `OK` — метрика рассчитана. `NO_DATA` — источник недоступен или данных
-        нет; категория исключается из взвешивания и не считается дефектом.
-      enum: [OK, NO_DATA]
-      example: OK
-
-    Priority:
-      type: string
-      enum: [HIGH, MEDIUM, LOW]
-      example: HIGH
-
-    RepositorySummary:
+    AnalyzeRequest:
+      properties:
+        repository_url:
+          type: string
+          title: Repository Url
+        scope:
+          type: string
+          title: Scope
+          default: public
       type: object
-      description: Строка публичного рейтинга
-      required: [id, name, url, health_score, likes, language, last_activity_at, status]
+      required:
+      - repository_url
+      title: AnalyzeRequest
+    CatalogSummary:
+      properties:
+        catalog_total:
+          type: integer
+          title: Catalog Total
+        analyzed_total:
+          type: integer
+          title: Analyzed Total
+        last_analyzed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Analyzed At
+      type: object
+      required:
+      - catalog_total
+      - analyzed_total
+      - last_analyzed_at
+      title: CatalogSummary
+    Component:
+      properties:
+        label:
+          type: string
+          title: Label
+        points:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Points
+        max_points:
+          type: number
+          title: Max Points
+        value:
+          type: string
+          title: Value
+      type: object
+      required:
+      - label
+      - points
+      - max_points
+      - value
+      title: Component
+    Evidence:
+      properties:
+        type:
+          type: string
+          enum:
+          - file
+          - pipeline
+          - vulnerability
+          - commit
+          - issue
+          - merge_request
+          title: Type
+        ref:
+          type: string
+          title: Ref
+        url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Url
+      type: object
+      required:
+      - type
+      - ref
+      title: Evidence
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HistoryPoint:
+      properties:
+        analyzed_at:
+          type: string
+          format: date-time
+          title: Analyzed At
+        health_score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Health Score
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+      type: object
+      required:
+      - analyzed_at
+      - health_score
+      - status
+      title: HistoryPoint
+    Job:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        repository_id:
+          type: string
+          title: Repository Id
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+        progress:
+          type: number
+          title: Progress
+          default: 0
+        stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stage
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+        error:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Error
+        scope:
+          type: string
+          title: Scope
+          default: public
+      type: object
+      required:
+      - job_id
+      - repository_id
+      - status
+      title: Job
+    JobAccepted:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        repository_id:
+          type: string
+          title: Repository Id
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+        queued_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Queued At
+        status_url:
+          type: string
+          title: Status Url
+        scope:
+          type: string
+          title: Scope
+          default: public
+      type: object
+      required:
+      - job_id
+      - repository_id
+      - status
+      - status_url
+      title: JobAccepted
+    JobInfo:
+      properties:
+        job_id:
+          type: string
+          title: Job Id
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+        stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stage
+        progress:
+          type: number
+          title: Progress
+          default: 0
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+        error:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - job_id
+      - status
+      title: JobInfo
+    Me:
       properties:
         id:
           type: string
-          example: repo-123
-        name:
-          type: string
-          example: awesome-lib
-        url:
-          type: string
-          format: uri
-          description: Ссылка на репозиторий в SourceCraft
-          example: https://sourcecraft.dev/user/awesome-lib
-        health_score:
-          type: integer
-          nullable: true
-          minimum: 0
-          maximum: 100
-          description: '`null`, если репозиторий ещё ни разу не анализировался'
-          example: 92
-        likes:
-          type: integer
-          example: 1200
-        language:
-          type: string
-          nullable: true
-          example: Python
-        last_activity_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: '2026-09-15T10:20:00Z'
-        last_analyzed_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: '2026-09-17T03:00:00Z'
-        status:
-          $ref: '#/components/schemas/AnalysisStatus'
-
-    RepositoryPage:
-      type: object
-      required: [items, page, limit, total]
-      properties:
-        items:
-          type: array
+          title: Id
+        login:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Login
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        avatar_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Avatar Url
+        has_token:
+          type: boolean
+          title: Has Token
+        sourcecraft_username:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sourcecraft Username
+        orgs:
           items:
-            $ref: '#/components/schemas/RepositorySummary'
-        page:
-          type: integer
-          example: 1
-        limit:
-          type: integer
-          example: 20
-        total:
-          type: integer
-          description: Общее число репозиториев, подходящих под фильтр
-          example: 1487
-
-    Metric:
+            type: string
+          type: array
+          title: Orgs
       type: object
-      description: Оценка по одной из шести категорий
-      required: [score, status, weight]
+      required:
+      - id
+      - login
+      - display_name
+      - avatar_url
+      - has_token
+      - sourcecraft_username
+      - orgs
+      title: Me
+    Metric:
       properties:
         score:
-          type: integer
-          nullable: true
-          minimum: 0
-          maximum: 100
-          description: '`null` при `status: NO_DATA`'
-          example: 61
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Score
         status:
-          $ref: '#/components/schemas/MetricStatus'
-        summary:
           type: string
-          description: Человекочитаемое объяснение оценки
-          example: Две критические уязвимости в зависимостях
+          enum:
+          - OK
+          - NO_DATA
+          title: Status
+        summary:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Summary
         weight:
           type: number
-          format: float
-          description: |
-            Фактический вес категории в итоговом Score после нормализации.
-            Отдаётся наружу, чтобы расчёт можно было воспроизвести.
-          example: 0.2
+          title: Weight
+        base_weight:
+          type: number
+          title: Base Weight
+        contribution:
+          type: number
+          title: Contribution
+        components:
+          items:
+            $ref: '#/components/schemas/Component'
+          type: array
+          title: Components
+          default: []
         details:
-          type: object
           additionalProperties: true
-          description: Сырые показатели категории для раскрывающегося блока в UI
-          example:
-            critical: 2
-            high: 0
-            medium: 5
-
-    Metrics:
+          type: object
+          title: Details
+          default: {}
+        evidence:
+          items:
+            $ref: '#/components/schemas/Evidence'
+          type: array
+          title: Evidence
+          default: []
       type: object
-      description: Шесть основных категорий анализа
-      required: [documentation, ci_cd, security, activity, issues, code_health]
+      required:
+      - score
+      - status
+      - weight
+      - base_weight
+      - contribution
+      title: Metric
+    Metrics:
       properties:
         documentation:
           $ref: '#/components/schemas/Metric'
@@ -492,209 +840,429 @@ components:
           $ref: '#/components/schemas/Metric'
         code_health:
           $ref: '#/components/schemas/Metric'
-
-    Evidence:
       type: object
-      description: Подтверждающий факт, на который ссылается рекомендация
-      required: [type, ref]
+      required:
+      - documentation
+      - ci_cd
+      - security
+      - activity
+      - issues
+      - code_health
+      title: Metrics
+    OrgsRequest:
       properties:
-        type:
-          type: string
-          enum: [file, pipeline, vulnerability, commit, issue, merge_request]
-          example: vulnerability
-        ref:
-          type: string
-          example: CVE-2025-1234
-        url:
-          type: string
-          format: uri
-          nullable: true
-          example: https://sourcecraft.dev/user/awesome-project/security/CVE-2025-1234
-
-    Recommendation:
+        orgs:
+          items:
+            type: string
+          type: array
+          title: Orgs
       type: object
-      required: [id, priority, category, title, description]
+      required:
+      - orgs
+      title: OrgsRequest
+    PreviousAnalysis:
+      properties:
+        health_score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Health Score
+        analyzed_at:
+          type: string
+          format: date-time
+          title: Analyzed At
+      type: object
+      required:
+      - health_score
+      - analyzed_at
+      title: PreviousAnalysis
+    Recommendation:
       properties:
         id:
           type: string
-          example: rec-1
+          title: Id
         priority:
-          $ref: '#/components/schemas/Priority'
+          type: string
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          title: Priority
         category:
           type: string
-          enum: [documentation, ci_cd, security, activity, issues, code_health]
-          example: security
+          title: Category
         title:
           type: string
-          example: Обновите зависимости с критическими уязвимостями
+          title: Title
         description:
           type: string
-          description: Проблема, почему она важна и рекомендуемое действие
-          example: Найдено 2 CVE в package.json по данным AppSec SourceCraft
-        impact:
+          title: Description
+        problem:
           type: string
-          description: Ожидаемое влияние исправления на Repo Health Score
-          example: +8 к Security
+          title: Problem
+        why_it_matters:
+          type: string
+          title: Why It Matters
+        action:
+          type: string
+          title: Action
+        facts:
+          type: string
+          title: Facts
+        impact:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Impact
+        score_gain:
+          type: number
+          title: Score Gain
+          default: 0
         evidence:
-          type: array
           items:
             $ref: '#/components/schemas/Evidence'
-
-    RepositoryDetail:
+          type: array
+          title: Evidence
+          default: []
       type: object
-      description: Полный отчёт для страницы анализа.
-      required: [id, name, url, health_score, verdict, status, metrics, recommendations]
+      required:
+      - id
+      - priority
+      - category
+      - title
+      - description
+      - problem
+      - why_it_matters
+      - action
+      - facts
+      title: Recommendation
+    RepositoryDetail:
       properties:
         id:
           type: string
-          example: repo-123
+          title: Id
         name:
           type: string
-          example: awesome-project
-        verdict:
+          title: Name
+        full_name:
           type: string
-          description: Короткий текстовый вердикт по итоговому Score, для страницы анализа
-          example: Хорошее состояние, есть точки роста
+          title: Full Name
         url:
           type: string
-          format: uri
-          example: https://sourcecraft.dev/user/awesome-project
+          title: Url
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
         language:
-          type: string
-          nullable: true
-          example: Python
-        health_score:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Language
+        likes:
           type: integer
-          nullable: true
-          minimum: 0
-          maximum: 100
-          example: 74
-        status:
-          $ref: '#/components/schemas/AnalysisStatus'
-        last_analyzed_at:
+          title: Likes
+        visibility:
           type: string
-          format: date-time
-          nullable: true
-          example: '2026-09-17T17:00:00Z'
+          title: Visibility
+        scope:
+          type: string
+          title: Scope
+        health_score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Health Score
+        verdict:
+          type: string
+          title: Verdict
+        status:
+          type: string
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+        last_analyzed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Analyzed At
+        methodology_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Methodology Version
+        coverage:
+          type: number
+          title: Coverage
+          default: 0
         metrics:
-          $ref: '#/components/schemas/Metrics'
-        recommendations:
+          anyOf:
+          - $ref: '#/components/schemas/Metrics'
+          - type: 'null'
+        strengths:
+          items:
+            type: string
           type: array
+          title: Strengths
+          default: []
+        weaknesses:
+          items:
+            type: string
+          type: array
+          title: Weaknesses
+          default: []
+        recommendations:
           items:
             $ref: '#/components/schemas/Recommendation'
-
-    AnalyzeRequest:
+          type: array
+          title: Recommendations
+          default: []
+        sources:
+          additionalProperties:
+            type: string
+          type: object
+          title: Sources
+          default: {}
+        previous:
+          anyOf:
+          - $ref: '#/components/schemas/PreviousAnalysis'
+          - type: 'null'
+        latest_job:
+          anyOf:
+          - $ref: '#/components/schemas/JobInfo'
+          - type: 'null'
       type: object
-      required: [repository_url]
+      required:
+      - id
+      - name
+      - full_name
+      - url
+      - language
+      - likes
+      - visibility
+      - scope
+      - health_score
+      - verdict
+      - status
+      - last_analyzed_at
+      - metrics
+      title: RepositoryDetail
+    RepositoryPage:
       properties:
-        repository_url:
-          type: string
-          format: uri
-          description: Ссылка на открытый репозиторий SourceCraft
-          example: https://sourcecraft.dev/user/my-repo
-
-    JobAccepted:
+        items:
+          items:
+            $ref: '#/components/schemas/RepositorySummary'
+          type: array
+          title: Items
+        page:
+          type: integer
+          title: Page
+        limit:
+          type: integer
+          title: Limit
+        total:
+          type: integer
+          title: Total
+        summary:
+          $ref: '#/components/schemas/CatalogSummary'
       type: object
-      required: [job_id, repository_id, status, status_url]
-      properties:
-        job_id:
-          type: string
-          example: job-a1b2c3
-        repository_id:
-          type: string
-          example: repo-456
-        status:
-          $ref: '#/components/schemas/AnalysisStatus'
-        queued_at:
-          type: string
-          format: date-time
-          example: '2026-09-17T17:05:00Z'
-        status_url:
-          type: string
-          description: Путь для опроса статуса задачи
-          example: /api/v1/jobs/job-a1b2c3
-
-    Job:
-      type: object
-      required: [job_id, repository_id, status]
-      properties:
-        job_id:
-          type: string
-          example: job-a1b2c3
-        repository_id:
-          type: string
-          example: repo-456
-        status:
-          $ref: '#/components/schemas/AnalysisStatus'
-        progress:
-          type: number
-          format: float
-          minimum: 0
-          maximum: 1
-          example: 0.42
-        stage:
-          type: string
-          enum: [CLONING, METADATA, SECURITY_SCAN, CODE_SCAN, SCORING]
-          nullable: true
-          example: SECURITY_SCAN
-        started_at:
-          type: string
-          format: date-time
-          nullable: true
-          example: '2026-09-17T17:05:03Z'
-        finished_at:
-          type: string
-          format: date-time
-          nullable: true
-        error:
-          nullable: true
-          allOf:
-            - $ref: '#/components/schemas/ErrorBody'
-
-    UserRepository:
-      type: object
-      description: '[v0.3] Репозиторий, доступный авторизованному пользователю'
-      required: [id, name, private]
+      required:
+      - items
+      - page
+      - limit
+      - total
+      - summary
+      title: RepositoryPage
+    RepositorySummary:
       properties:
         id:
           type: string
-          example: repo-789
+          title: Id
         name:
           type: string
-          example: my-private-lib
-        private:
-          type: boolean
-          example: true
+          title: Name
+        full_name:
+          type: string
+          title: Full Name
+        url:
+          type: string
+          title: Url
         health_score:
-          type: integer
-          nullable: true
-          example: 64
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Health Score
         likes:
           type: integer
-          example: 3
+          title: Likes
         language:
-          type: string
-          nullable: true
-          example: Go
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Language
         last_activity_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Activity At
+        last_analyzed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Analyzed At
+        status:
           type: string
-          format: date-time
-          nullable: true
-
-    ErrorBody:
+          enum:
+          - PENDING
+          - IN_PROGRESS
+          - COMPLETED
+          - PARTIAL
+          - FAILED
+          title: Status
+        coverage:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Coverage
       type: object
-      required: [code, message]
+      required:
+      - id
+      - name
+      - full_name
+      - url
+      - health_score
+      - likes
+      - language
+      - last_activity_at
+      - last_analyzed_at
+      - status
+      title: RepositorySummary
+    TokenRequest:
       properties:
-        code:
+        token:
           type: string
-          example: REPOSITORY_NOT_FOUND
-        message:
-          type: string
-          example: Репозиторий не найден в SourceCraft
-
-    Error:
+          title: Token
       type: object
-      required: [error]
+      required:
+      - token
+      title: TokenRequest
+    UserRepository:
       properties:
-        error:
-          $ref: '#/components/schemas/ErrorBody'
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        full_name:
+          type: string
+          title: Full Name
+        url:
+          type: string
+          title: Url
+        private:
+          type: boolean
+          title: Private
+        visibility:
+          type: string
+          title: Visibility
+        health_score:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Health Score
+        likes:
+          type: integer
+          title: Likes
+        language:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Language
+        last_activity_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Activity At
+        last_analyzed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Analyzed At
+        analyzed:
+          type: boolean
+          title: Analyzed
+      type: object
+      required:
+      - id
+      - name
+      - full_name
+      - url
+      - private
+      - visibility
+      - health_score
+      - likes
+      - language
+      - last_activity_at
+      - last_analyzed_at
+      - analyzed
+      title: UserRepository
+    UserRepositoryList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/UserRepository'
+          type: array
+          title: Items
+        orgs_checked:
+          items:
+            type: string
+          type: array
+          title: Orgs Checked
+        errors:
+          items:
+            type: string
+          type: array
+          title: Errors
+          default: []
+      type: object
+      required:
+      - items
+      - orgs_checked
+      title: UserRepositoryList
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

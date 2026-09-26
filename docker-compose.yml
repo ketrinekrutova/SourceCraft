@@ -1,0 +1,54 @@
+# Полный стенд: docker compose up -d --build   →   http://localhost:8080
+# Масштабирование воркеров:   docker compose up -d --scale worker=3
+# (тогда SOURCECRAFT_API_RPS в .env ≈ 10 / (число воркеров + 1) - лимит SourceCraft 10 rps на хост)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: repo_health
+      POSTGRES_PASSWORD: repo_health
+      POSTGRES_DB: repo_health
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repo_health"]
+      interval: 5s
+      retries: 10
+
+  # API + планировщик (ночной пересчёт каталога). Сам анализы не выполняет.
+  api:
+    build: ./backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://repo_health:repo_health@db:5432/repo_health
+      RUN_WORKER: "false"
+      SCHEDULER_ENABLED: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Воркеры разбирают общую очередь в Postgres (SELECT ... FOR UPDATE SKIP LOCKED).
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://repo_health:repo_health@db:5432/repo_health
+      SCHEDULER_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

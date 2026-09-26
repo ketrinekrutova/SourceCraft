@@ -1,51 +1,44 @@
 from .result import CATEGORY_WEIGHTS, CategoryScore
 
 
+def effective_weights(categories: dict[str, CategoryScore]) -> dict[str, float]:
+    """Фактические веса: категории без данных получают 0, веса остальных нормируются к сумме 1."""
+    available = {name: CATEGORY_WEIGHTS[name] for name, cs in categories.items()
+                 if cs.status == "ok" and cs.score is not None}
+    total = sum(available.values())
+    return {name: (available.get(name, 0) / total if total else 0.0) for name in categories}
+
+
 def aggregate(categories: dict[str, CategoryScore]) -> int | None:
     """
-    README 3.1: категории со status="no_data" исключаются из суммы, веса остальных
-    перенормируются (CATEGORY_WEIGHTS из result.py), а не подставляется 0.
+    Repo Health Score = Σ(score_k × w_k) / Σ w_k  по категориям со status="ok".
 
-    "Все 6 категорий no_data одновременно" физически недостижимо при обычной работе (по нашим
-    правилам no_data бывает только у Security/Issues/Activity/Code health, а Documentation
-    no_data — только при is_empty_repo, что обрабатывается ДО вызова этой функции, отдельным
-    сценарием CHECK.md №5). Тем не менее для защиты от деления на ноль: если available пуст,
-    вернуть None, а не падать — вызывающий код должен считать это тем же самым "нет данных"
-    для всего репозитория.
+    Категории со status="no_data" исключаются из суммы, веса остальных перенормируются, а не
+    подставляется 0 - отсутствие данных не ухудшает оценку (ТЗ 3.2, ограничение 11.5).
+    Если данных нет ни по одной категории - None («Нет данных» для всего репозитория).
     """
-    available = []
-
-    for name, category in categories.items():
-        if category.status == "ok" and category.score is not None:
-            available.append((name, category))
-
-    if not available:
+    weights = effective_weights(categories)
+    if not any(weights.values()):
         return None
-
-    weighted_sum = 0
-    total_weight = 0
-
-    for name, category in available:
-        weight = CATEGORY_WEIGHTS[name]
-
-        weighted_sum += category.score * weight
-        total_weight += weight
-
-    score = weighted_sum / total_weight
-
-    return round(score)
+    return round(sum(cs.score * weights[name] for name, cs in categories.items() if weights[name]))
 
 
-def verdict(score: int) -> str:
+def coverage(categories: dict[str, CategoryScore]) -> float:
+    """Доля исходного веса (0..1), по которой есть данные - насколько полно посчитан Score."""
+    got = sum(CATEGORY_WEIGHTS[n] for n, cs in categories.items() if cs.status == "ok")
+    return got / sum(CATEGORY_WEIGHTS.values())
+
+
+def verdict(score: int | None) -> str:
     """
-    Короткая текстовая интерпретация итогового Score для страницы анализа (README 3.4).
-    Пороги подтверждены (граница 60-79 подобрана так, чтобы пример из макета, Score=74,
-    попадал в "Хорошее состояние, есть точки роста"):
+    Короткая текстовая интерпретация итогового Score для страницы анализа:
       >= 80        -> "Отличное состояние"
       60-79        -> "Хорошее состояние, есть точки роста"
       40-59        -> "Требует внимания"
       < 40         -> "Критическое состояние"
     """
+    if score is None:
+        return "Недостаточно данных для оценки"
     if score >= 80:
         return "Отличное состояние"
     if score >= 60:

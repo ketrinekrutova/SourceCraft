@@ -1,0 +1,49 @@
+.button {
+  position: relative;
+  border: none;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 2px;
+  border-radius: inherit;
+  background: var(--convex-gradient);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  display: block;
+  border-radius: var(--radius-pill);
+  padding: 10px 20px;
+  background: var(--pill-fill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: #2d2d2d;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.light {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.button:hover:not(:disabled) .inner {
+  filter: brightness(1.05);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}

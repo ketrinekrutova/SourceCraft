@@ -1,5 +1,5 @@
-/* Тот же цвет, что и у таблицы на странице рейтинга (RatingPage.module.css .table) —
-   единообразная "плашка" по всему сайту. Обводка — тот же приём с ::before-кольцом, что у
+/* Тот же цвет, что и у таблицы на странице рейтинга (RatingPage.module.css .table) -
+   единообразная "плашка" по всему сайту. Обводка - тот же приём с ::before-кольцом, что у
    кнопки входа/дропдауна (маска делает центр физически прозрачным), только 3px. */
 .card {
   position: relative;
@@ -7,6 +7,7 @@
   border-radius: 22px;
   padding: 22px 24px;
   color: #2d2d2d;
+  align-self: start;
 }
 
 .card::before {
@@ -22,10 +23,29 @@
   pointer-events: none;
 }
 
+/* «Нет данных» визуально отличается от плохой оценки: штриховка вместо цветной полосы. */
+.cardNoData {
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.08) 0 10px, rgba(0, 0, 0, 0.13) 10px 20px);
+}
+
+.header {
+  all: unset;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
 .title {
   font-weight: 700;
   font-size: 16px;
-  margin-bottom: 12px;
+}
+
+.weight {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .barRow {
@@ -61,7 +81,78 @@
 }
 
 .noData {
-  color: #2d2d2d;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.noDataBadge {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1.5px dashed #575757;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+.noDataReason {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.noDataHint {
+  font-size: 12px;
+  color: var(--text-muted);
   font-style: italic;
-  font-size: 14px;
+}
+
+.toggle {
+  all: unset;
+  cursor: pointer;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.details {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.components {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.components td {
+  padding: 4px 0;
+  vertical-align: top;
+}
+
+/* Светлый текст: серый var(--text-muted) сливался с тёмной полупрозрачной плашкой. */
+.componentValue {
+  color: rgba(255, 255, 255, 0.92);
+  padding: 4px 8px !important;
+}
+
+.componentPoints {
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.contribution {
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.factsTitle {
+  margin-top: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
 }

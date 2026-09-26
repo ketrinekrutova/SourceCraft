@@ -6,7 +6,7 @@ import { AnalysisPage } from "./pages/AnalysisPage";
 import { MyRepositoriesPage } from "./pages/MyRepositoriesPage";
 import { RatingPage } from "./pages/RatingPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } });
 
 export default function App() {
   return (

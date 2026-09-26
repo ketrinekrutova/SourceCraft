@@ -1,21 +1,40 @@
-import type { JobAccepted, RepositoryDetail, RepositoryPage, UserRepository } from "./types";
+import type {
+  AuthState,
+  HistoryPoint,
+  Job,
+  JobAccepted,
+  Me,
+  RepositoryDetail,
+  RepositoryPage,
+  Scope,
+  UserRepositoryList,
+} from "./types";
 
-// Один общий базовый адрес. Пока бэкенд не готов, запросы перехватывает MSW (src/mocks/handlers.ts).
-// Когда появится реальный бэкенд — здесь меняется только эта строка (или .env), компоненты не трогаем.
-const API_BASE = "/api/v1";
+// Бэкенд на том же origin: в разработке через proxy Vite, в продакшене через nginx.
+const API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    credentials: "same-origin",
     ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.error?.message ?? `Request failed: ${res.status}`);
+    throw new ApiError(res.status, body?.error?.code ?? "ERROR", body?.error?.message ?? `Ошибка запроса: ${res.status}`);
   }
-  if (res.status === 202 || res.status === 204) {
-    return res.json().catch(() => undefined) as Promise<T>;
-  }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -29,44 +48,45 @@ export interface RatingQuery {
 
 export function fetchRating(query: RatingQuery): Promise<RepositoryPage> {
   const params = new URLSearchParams();
-  if (query.language) params.set("language", query.language);
-  if (query.sort_by) params.set("sort_by", query.sort_by);
-  if (query.order) params.set("order", query.order);
-  if (query.page) params.set("page", String(query.page));
-  if (query.limit) params.set("limit", String(query.limit));
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
   const qs = params.toString();
   return request<RepositoryPage>(`/repositories${qs ? `?${qs}` : ""}`);
 }
 
-export function fetchRepository(id: string): Promise<RepositoryDetail> {
-  return request<RepositoryDetail>(`/repositories/${id}`);
-}
+export const fetchLanguages = () => request<string[]>("/repositories/languages");
 
-export function analyzeRepository(repositoryUrl: string): Promise<JobAccepted> {
-  return request<JobAccepted>("/repositories/analyze", {
+const enc = encodeURIComponent;
+
+export const fetchRepository = (id: string, scope: Scope) =>
+  request<RepositoryDetail>(`/repositories/${enc(id)}?scope=${scope}`);
+
+export const fetchHistory = (id: string, scope: Scope) =>
+  request<HistoryPoint[]>(`/repositories/${enc(id)}/history?scope=${scope}`);
+
+export const analyzeRepository = (repositoryUrl: string, scope: Scope) =>
+  request<JobAccepted>("/repositories/analyze", {
     method: "POST",
-    body: JSON.stringify({ repository_url: repositoryUrl }),
+    body: JSON.stringify({ repository_url: repositoryUrl, scope }),
   });
-}
 
-export function reanalyzeRepository(id: string): Promise<JobAccepted> {
-  return request<JobAccepted>(`/repositories/${id}/reanalyze`, { method: "POST" });
-}
+export const reanalyzeRepository = (id: string, scope: Scope) =>
+  request<JobAccepted>(`/repositories/${enc(id)}/reanalyze?scope=${scope}`, { method: "POST" });
 
-export function fetchJob(jobId: string) {
-  return request(`/jobs/${jobId}`);
-}
+export const fetchJob = (jobId: string) => request<Job>(`/jobs/${enc(jobId)}`);
 
-export function reportDownloadUrl(id: string, format: "markdown" | "pdf" = "markdown"): string {
-  return `${API_BASE}/repositories/${id}/report?format=${format}`;
-}
+export const reportDownloadUrl = (id: string, scope: Scope, format: "markdown" | "pdf" = "markdown") =>
+  `${API_BASE}/repositories/${enc(id)}/report?format=${format}&scope=${scope}`;
 
-// v0.3 в openapi.yaml (авторизация ещё не в контракте бэкенда) — мокаем целиком на фронте,
-// см. src/mocks/handlers.ts и src/auth/AuthContext.tsx.
-export function fetchMyRepositories(): Promise<{ items: UserRepository[] }> {
-  return request<{ items: UserRepository[] }>("/user/repositories");
-}
+// --- авторизация и личный кабинет ---
 
-export function mockLogin(): Promise<{ display_name: string }> {
-  return request<{ display_name: string }>("/auth/mock-login", { method: "POST" });
-}
+export const fetchAuth = () => request<AuthState>("/auth/me");
+export const yandexLoginUrl = () => `${API_BASE}/auth/yandex/login`;
+export const devLogin = () => request<AuthState>("/auth/dev-login", { method: "POST" });
+export const logout = () => request<void>("/auth/logout", { method: "POST" });
+
+export const saveToken = (token: string) => request<Me>("/user/token", { method: "PUT", body: JSON.stringify({ token }) });
+export const deleteToken = () => request<Me>("/user/token", { method: "DELETE" });
+export const saveOrgs = (orgs: string[]) => request<Me>("/user/orgs", { method: "PUT", body: JSON.stringify({ orgs }) });
+export const fetchMyRepositories = () => request<UserRepositoryList>("/user/repositories");
