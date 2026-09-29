@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import logging
+import sys
 
 from sqlalchemy import select
 
@@ -19,6 +20,11 @@ from .services.analysis import latest_analysis, run_job
 from .services.queue import PRIORITY_MANUAL, claim_next, enqueue
 from .services.repositories import parse_repo_ref, resolve_public_repo
 from .workers.scheduler import discover_catalog, scheduled_sweep
+
+# Консоль Windows по умолчанию в cp1252/cp866 - без этого печать кириллицы падает с UnicodeEncodeError.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
