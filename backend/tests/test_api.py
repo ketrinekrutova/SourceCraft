@@ -9,6 +9,7 @@ from sqlalchemy import delete
 
 from app.clients.http import SourceError
 from app.clients.sourcecraft_api import SourceCraftAPIClient
+from app.config import settings
 from app.db import async_session, init_db
 from app.main import app
 from app.models import Analysis, Job, Repository, User, UserRepoAccess
@@ -243,6 +244,26 @@ async def test_personal_analysis_of_public_repo_does_not_leak_into_rating(client
     assert rating["health_score"] == public_score
     public = (await client.get("/api/v1/repositories/100")).json()
     assert public["metrics"]["security"]["status"] == "NO_DATA"
+
+
+async def test_public_analysis_without_service_pat_reuses_known_repo(client, fake_collect, monkeypatch):
+    # Репозиторий уже в базе под id из API (личный анализ), сервисного PAT на стенде нет:
+    # публичный запуск по ссылке должен взять эту запись, а не вставлять дубль org/slug (была 500).
+    await login(client, "alice-pat")
+    await client.post("/api/v1/repositories/analyze", json={"repository_url": "acme/lib", "scope": "personal"})
+    await client.post("/api/v1/repositories/analyze", json={"repository_url": "alice/secret", "scope": "personal"})
+    await drain_queue()
+    monkeypatch.setattr(settings, "sourcecraft_service_pat", "")
+
+    r = await client.post("/api/v1/repositories/analyze", json={"repository_url": "https://sourcecraft.dev/acme/lib"})
+    assert r.status_code == 202, r.text
+    assert r.json()["repository_id"] == "100"
+    await drain_queue()
+    rating = (await client.get("/api/v1/repositories")).json()["items"]
+    assert [(i["id"], i["health_score"] is not None) for i in rating] == [("100", True)]
+
+    r = await client.post("/api/v1/repositories/analyze", json={"repository_url": "alice/secret"})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "NOT_PUBLIC"
 
 
 async def test_revoked_access_blocks_personal_report(client, fake_collect):

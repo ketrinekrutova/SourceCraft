@@ -56,11 +56,16 @@ async def _drop_placeholders(session: AsyncSession, org: str, slug: str, real_id
 
 async def placeholder_repository(session: AsyncSession, org: str, slug: str) -> Repository | None:
     """Режим без сервисного PAT: API недоступен, но публичный репозиторий можно проанализировать
-    по git (документация, активность, code health); CI/Issues будут «Нет данных»."""
-    repo_id = f"{PLACEHOLDER_PREFIX}{org}:{slug}"
-    row = await session.get(Repository, repo_id)
+    по git (документация, активность, code health); CI/Issues будут «Нет данных».
+
+    Репозиторий уже может быть в базе под настоящим id из API (каталог, личный анализ) - тогда
+    берём его: вторая запись с тем же org/slug нарушила бы уникальный индекс."""
+    row = (await session.execute(
+        select(Repository).where(Repository.org_slug == org, Repository.slug == slug)
+    )).scalar_one_or_none()
     if row:
         return row
+    repo_id = f"{PLACEHOLDER_PREFIX}{org}:{slug}"
     clone_url = f"{settings.sourcecraft_git_base_url.rstrip('/')}/{org}/{slug}.git"
     if not await asyncio.to_thread(git.ls_remote, clone_url):
         return None
@@ -123,4 +128,6 @@ async def resolve_public_repo(session: AsyncSession, org: str, slug: str) -> Rep
     repo = await placeholder_repository(session, org, slug)
     if repo is None:
         raise ResolveError(404, "REPOSITORY_NOT_FOUND", "Открытый репозиторий не найден в SourceCraft")
+    if repo.visibility != "public":
+        raise ResolveError(400, "NOT_PUBLIC", "Репозиторий закрытый: войдите через Я ID и запустите личный анализ")
     return repo
